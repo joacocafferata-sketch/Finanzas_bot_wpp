@@ -1,0 +1,4 @@
+flask
+anthropic
+gspread
+google-auth
