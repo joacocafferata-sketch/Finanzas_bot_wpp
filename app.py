@@ -1,7 +1,6 @@
 from flask import Flask, request
 import anthropic
-import gspread
-from google.oauth2.service_account import Credentials
+import requests
 from datetime import datetime
 import json
 import os
@@ -9,7 +8,7 @@ import os
 app = Flask(__name__)
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
-SPREADSHEET_ID = os.environ.get("SPREADSHEET_ID")
+APPS_SCRIPT_URL = os.environ.get("APPS_SCRIPT_URL")
 
 def interpretar_mensaje(mensaje):
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -35,23 +34,22 @@ Respondé SOLO con el JSON, sin explicaciones."""
 @app.route("/webhook", methods=["POST"])
 def webhook():
     mensaje = request.form.get("Body", "")
-    numero = request.form.get("From", "")
     
     try:
         datos = interpretar_mensaje(mensaje)
         fecha = datetime.now().strftime("%Y-%m-%d")
         
-        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds_json = json.loads(os.environ.get("GOOGLE_CREDENTIALS"))
-        creds = Credentials.from_service_account_info(creds_json, scopes=scope)
-        gc = gspread.authorize(creds)
-        sh = gc.open_by_key(SPREADSHEET_ID)
-        ws = sh.sheet1
-        ws.append_row([fecha, datos["descripcion"], datos["monto"], datos["tipo"], datos["categoria"]])
+        requests.post(APPS_SCRIPT_URL, json={
+            "fecha": fecha,
+            "descripcion": datos["descripcion"],
+            "monto": datos["monto"],
+            "tipo": datos["tipo"],
+            "categoria": datos["categoria"]
+        })
         
         respuesta = f"✅ Registrado: {datos['descripcion']} - ${datos['monto']} ({datos['tipo']} en {datos['categoria']})"
     except Exception as e:
-        respuesta = f"❌ No pude interpretar el mensaje. Intentá con algo como: 'gasté 5000 en el súper'"
+        respuesta = "❌ No pude interpretar el mensaje. Intentá con algo como: 'gasté 5000 en el súper'"
     
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response><Message>{respuesta}</Message></Response>"""
