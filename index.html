@@ -68,17 +68,18 @@
     .btn-cancel:hover { color: var(--text); }
     .inv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 1rem; }
     .inv-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 14px; padding: 1.1rem; }
-    .inv-card .inv-name { font-size: 12px; color: var(--text2); margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
+    .inv-card .inv-name { font-size: 12px; color: var(--text2); margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; gap: 6px; }
     .inv-card .inv-amount { font-size: 22px; font-weight: 600; color: var(--purple); }
     .inv-card .inv-date { font-size: 11px; color: var(--text2); margin-top: 4px; }
-    .inv-card .inv-edit { background: none; border: none; color: var(--text2); cursor: pointer; font-size: 14px; }
+    .inv-card .inv-edit { background: none; border: none; color: var(--text2); cursor: pointer; font-size: 14px; padding: 2px 4px; }
+    .inv-card .inv-delete { background: none; border: none; color: var(--red); cursor: pointer; font-size: 14px; opacity: .6; padding: 2px 4px; }
+    .inv-card .inv-delete:hover { opacity: 1; }
     .inv-change { font-size: 12px; margin-top: 4px; }
     .inv-change.pos { color: var(--green); }
     .inv-change.neg { color: var(--red); }
     .add-inv-btn { width: 100%; padding: 12px; border-radius: 14px; border: 1px dashed var(--border); background: transparent; color: var(--text2); cursor: pointer; font-size: 13px; transition: all .15s; margin-bottom: 1rem; }
     .add-inv-btn:hover { border-color: var(--purple); color: var(--purple); }
     .empty { text-align: center; color: var(--text2); font-size: 13px; padding: 2.5rem 0; }
-    .saving { opacity: .6; pointer-events: none; }
     @media (max-width: 600px) {
       .charts-grid { grid-template-columns: 1fr; }
       .metrics { grid-template-columns: 1fr 1fr; }
@@ -146,7 +147,7 @@
     <h3>✏️ Editar movimiento</h3>
     <input type="hidden" id="edit-id">
     <div class="modal-field"><label>Descripción</label><input type="text" id="edit-desc"></div>
-    <div class="modal-field"><label>Monto</label><input type="number" id="edit-monto"></div>
+    <div class="modal-field"><label>Monto</label><input type="text" inputmode="decimal" id="edit-monto" placeholder="0"></div>
     <div class="modal-field"><label>Tipo</label>
       <select id="edit-tipo">
         <option value="ingreso">Ingreso</option>
@@ -176,7 +177,7 @@
     <h3 id="modal-inv-title">📈 Nueva inversión</h3>
     <input type="hidden" id="inv-edit-id">
     <div class="modal-field"><label>Nombre</label><input type="text" id="inv-nombre" placeholder="Ej: Balanz FCI, Acciones GGAL..."></div>
-    <div class="modal-field"><label>Monto actual</label><input type="number" id="inv-monto" placeholder="0"></div>
+    <div class="modal-field"><label>Monto actual</label><input type="text" inputmode="decimal" id="inv-monto" placeholder="Ej: 150000"></div>
     <div class="modal-field"><label>Moneda</label>
       <select id="inv-moneda">
         <option value="ARS">Pesos (ARS)</option>
@@ -206,7 +207,10 @@
     'Cuba':'#ff9f43','Otros':'#666'
   };
 
+  // Convierte string con coma o punto a número
+  const parseNum = (str) => parseFloat(String(str).replace(',', '.')) || 0;
   const fmt = (n, moneda) => (moneda === 'USD' ? 'U$D ' : '$') + Math.round(n).toLocaleString('es-AR');
+
   let allData = [];
   let editingId = null;
   let pieChart, barChart;
@@ -223,7 +227,7 @@
         id: row.id || '',
         fecha: row.fecha || '',
         descripcion: row.descripcion || '',
-        monto: parseFloat(row.monto) || 0,
+        monto: parseNum(row.monto),
         tipo: row.tipo || '',
         categoria: row.categoria || 'Otros'
       })).filter(r => r.monto > 0);
@@ -237,8 +241,8 @@
   }
 
   function renderResumen() {
-    const ingresos = allData.filter(r => r.tipo==='ingreso').reduce((a,r)=>a+r.monto,0);
-    const gastos = allData.filter(r => r.tipo==='gasto').reduce((a,r)=>a+r.monto,0);
+    const ingresos = allData.filter(r=>r.tipo==='ingreso').reduce((a,r)=>a+r.monto,0);
+    const gastos = allData.filter(r=>r.tipo==='gasto').reduce((a,r)=>a+r.monto,0);
     const balance = ingresos - gastos;
     const invTotal = getInversiones().filter(i=>i.moneda==='ARS').reduce((a,i)=>a+i.monto,0);
 
@@ -335,31 +339,20 @@
 
   async function guardarEdicion() {
     if (!editingId) return;
-    const modal = document.querySelector('#modal-edit .modal');
-    modal.classList.add('saving');
-
     const body = {
       data: {
         fecha: document.getElementById('edit-fecha').value,
         descripcion: document.getElementById('edit-desc').value,
-        monto: document.getElementById('edit-monto').value,
+        monto: parseNum(document.getElementById('edit-monto').value),
         tipo: document.getElementById('edit-tipo').value,
         categoria: document.getElementById('edit-cat').value
       }
     };
-
     try {
-      const res = await fetch(`${SHEETDB_URL}/id/${editingId}`, {
-        method: 'PATCH',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(body)
+      await fetch(`${SHEETDB_URL}/id/${editingId}`, {
+        method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
       });
-      console.log('Edit response:', res.status, await res.text());
-    } catch(e) {
-      console.error('Edit error:', e);
-    }
-
-    modal.classList.remove('saving');
+    } catch(e) {}
     cerrarModal('modal-edit');
     await cargarDatos();
   }
@@ -390,7 +383,13 @@
           const cambio = inv.historial && inv.historial.length > 1 ? inv.monto - inv.historial[inv.historial.length-2].monto : 0;
           const cambioStr = cambio !== 0 ? (cambio>=0?'+':'') + fmt(cambio,inv.moneda) : '';
           return `<div class="inv-card">
-            <div class="inv-name"><span>📈 ${inv.nombre}</span><button class="inv-edit" onclick="abrirModalInversion(${i})">✏️</button></div>
+            <div class="inv-name">
+              <span>📈 ${inv.nombre}</span>
+              <span style="display:flex;gap:4px;">
+                <button class="inv-edit" onclick="abrirModalInversion(${i})">✏️</button>
+                <button class="inv-delete" onclick="eliminarInversion(${i})">🗑</button>
+              </span>
+            </div>
             <div class="inv-amount">${fmt(inv.monto,inv.moneda)}</div>
             ${cambioStr ? `<div class="inv-change ${cambio>=0?'pos':'neg'}">${cambioStr} vs anterior</div>` : ''}
             <div class="inv-date">Actualizado: ${inv.fecha}</div>
@@ -409,6 +408,14 @@
           <div class="txn-info"><div class="txn-desc">${h.nombre}</div><div class="txn-meta">${h.fecha}</div></div>
           <span class="txn-amount income">${fmt(h.monto,h.moneda)}</span>
         </div>`).join('');
+  }
+
+  function eliminarInversion(index) {
+    if (!confirm('¿Eliminar esta inversión?')) return;
+    const inversiones = getInversiones();
+    inversiones.splice(index, 1);
+    saveInversiones(inversiones);
+    renderInversiones();
   }
 
   function abrirModalInversion(index) {
@@ -432,7 +439,7 @@
     const inversiones = getInversiones();
     const idx = document.getElementById('inv-edit-id').value;
     const nombre = document.getElementById('inv-nombre').value.trim();
-    const monto = parseFloat(document.getElementById('inv-monto').value) || 0;
+    const monto = parseNum(document.getElementById('inv-monto').value);
     const moneda = document.getElementById('inv-moneda').value;
     const fecha = new Date().toLocaleDateString('es-AR');
     if (!nombre || !monto) return;
