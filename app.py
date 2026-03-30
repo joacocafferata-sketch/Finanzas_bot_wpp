@@ -1,5 +1,4 @@
 from flask import Flask, request
-import anthropic
 import requests
 from datetime import datetime
 import json
@@ -7,17 +6,21 @@ import os
 
 app = Flask(__name__)
 
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 APPS_SCRIPT_URL = os.environ.get("APPS_SCRIPT_URL")
 
 def interpretar_mensaje(mensaje):
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-    response = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=500,
-        messages=[{
-            "role": "user",
-            "content": f"""Interpretá este mensaje de finanzas personales y devolvé SOLO un JSON con estos campos:
+    response = requests.post(
+        "https://api.groq.com/openai/v1/chat/completions",
+        headers={
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        },
+        json={
+            "model": "llama3-8b-8192",
+            "messages": [{
+                "role": "user",
+                "content": f"""Interpretá este mensaje de finanzas personales y devolvé SOLO un JSON con estos campos:
 - descripcion (string)
 - monto (número sin simbolos)
 - tipo (solo "ingreso" o "gasto")
@@ -25,10 +28,12 @@ def interpretar_mensaje(mensaje):
 
 Mensaje: {mensaje}
 
-Respondé SOLO con el JSON, sin explicaciones."""
-        }]
+Respondé SOLO con el JSON, sin explicaciones ni texto extra."""
+            }],
+            "max_tokens": 200
+        }
     )
-    texto = response.content[0].text.strip()
+    texto = response.json()["choices"][0]["message"]["content"].strip()
     return json.loads(texto)
 
 @app.route("/webhook", methods=["POST"])
