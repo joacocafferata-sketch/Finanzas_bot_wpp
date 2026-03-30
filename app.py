@@ -4,6 +4,7 @@ from datetime import datetime
 import json
 import os
 import re
+import uuid
 
 app = Flask(__name__)
 
@@ -25,7 +26,7 @@ def interpretar_mensaje(mensaje):
 - descripcion (string)
 - monto (number)
 - tipo (only "ingreso" or "gasto")
-- categoria (one of: Sueldo, Freelance, Vivienda, Alimentacion, Transporte, Salud, Entretenimiento, Educacion, Otros)
+- categoria (one of: Sueldo, Freelance, Vivienda, Alimentacion, Transporte, Salud, Entretenimiento, Educacion, Ropa, Cuba, Otros)
 
 Message: {mensaje}
 
@@ -48,6 +49,7 @@ def webhook():
     try:
         datos = interpretar_mensaje(mensaje)
         fecha = datetime.now().strftime("%Y-%m-%d")
+        id_unico = str(uuid.uuid4())[:8]
 
         r = requests.post(
             SHEETDB_URL,
@@ -56,7 +58,8 @@ def webhook():
                 "descripcion": datos["descripcion"],
                 "monto": datos["monto"],
                 "tipo": datos["tipo"],
-                "categoria": datos["categoria"]
+                "categoria": datos["categoria"],
+                "id": id_unico
             }]}
         )
         print(f"SheetDB response: {r.status_code} - {r.text}")
