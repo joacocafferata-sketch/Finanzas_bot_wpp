@@ -11,6 +11,9 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 APPS_SCRIPT_URL = os.environ.get("APPS_SCRIPT_URL")
 
 def interpretar_mensaje(mensaje):
+    print(f"GROQ_API_KEY presente: {bool(GROQ_API_KEY)}")
+    print(f"Mensaje recibido: {mensaje}")
+    
     response = requests.post(
         "https://api.groq.com/openai/v1/chat/completions",
         headers={
@@ -21,19 +24,22 @@ def interpretar_mensaje(mensaje):
             "model": "llama3-8b-8192",
             "messages": [{
                 "role": "user",
-                "content": f"""Interpretá este mensaje de finanzas personales y devolvé SOLO un JSON con estos campos:
+                "content": f"""Interpret this personal finance message and return ONLY a JSON with these fields:
 - descripcion (string)
-- monto (número sin simbolos)
-- tipo (solo "ingreso" o "gasto")
-- categoria (una de estas: Sueldo, Freelance, Otros ingresos, Vivienda, Alimentacion, Transporte, Salud, Entretenimiento, Educacion, Otros gastos)
+- monto (number)
+- tipo (only "ingreso" or "gasto")
+- categoria (one of: Sueldo, Freelance, Vivienda, Alimentacion, Transporte, Salud, Entretenimiento, Educacion, Otros)
 
-Mensaje: {mensaje}
+Message: {mensaje}
 
-IMPORTANTE: Respondé ÚNICAMENTE con el JSON, sin texto antes ni después, sin comillas, sin markdown."""
+Return ONLY the JSON, nothing else."""
             }],
             "max_tokens": 200
         }
     )
+    print(f"Groq status: {response.status_code}")
+    print(f"Groq response: {response.text}")
+    
     texto = response.json()["choices"][0]["message"]["content"].strip()
     match = re.search(r'\{.*\}', texto, re.DOTALL)
     if match:
@@ -43,21 +49,24 @@ IMPORTANTE: Respondé ÚNICAMENTE con el JSON, sin texto antes ni después, sin 
 @app.route("/webhook", methods=["POST"])
 def webhook():
     mensaje = request.form.get("Body", "")
+    print(f"Webhook recibido: {mensaje}")
 
     try:
         datos = interpretar_mensaje(mensaje)
         fecha = datetime.now().strftime("%Y-%m-%d")
 
-        requests.post(APPS_SCRIPT_URL, json={
+        r = requests.post(APPS_SCRIPT_URL, json={
             "fecha": fecha,
             "descripcion": datos["descripcion"],
             "monto": datos["monto"],
             "tipo": datos["tipo"],
             "categoria": datos["categoria"]
         })
+        print(f"Apps Script response: {r.status_code} - {r.text}")
 
         respuesta = f"Registrado: {datos['descripcion']} - ${datos['monto']} ({datos['tipo']} en {datos['categoria']})"
     except Exception as e:
+        print(f"ERROR COMPLETO: {str(e)}")
         respuesta = f"Error: {str(e)}"
 
     return f"""<?xml version="1.0" encoding="UTF-8"?>
